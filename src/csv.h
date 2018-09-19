@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <functional>
 #include <cctype>
+#include <typeinfo>
 
 namespace csv {
 
@@ -37,6 +38,72 @@ static inline std::string &trim(std::string &s)
     return ltrim(rtrim(s));
 }
 
+struct ConvertException : public std::exception
+{
+    virtual const char *what() const throw()
+    {
+        return "invalid conversion type";
+    }
+};
+
+template<typename T>
+struct ConvertToString
+{
+    std::string tostr(const T &val) const
+    {
+        if (typeid(T) == typeid(int) ||
+            typeid(T) == typeid(long) ||
+            typeid(T) == typeid(long long) ||
+            typeid(T) == typeid(unsigned) ||
+            typeid(T) == typeid(unsigned long) ||
+            typeid(T) == typeid(unsigned long long) ||
+            typeid(T) == typeid(float) ||
+            typeid(T) == typeid(double) ||
+            typeid(T) == typeid(long double) ||
+            typeid(T) == typeid(char))
+        {
+            return (std::ostringstream() << val).str();
+        } else {
+            throw ConvertException();
+        }
+    }
+};
+
+template<typename T>
+struct ConvertToValue
+{
+    T operator()(const std::string &s) const
+    {
+        try {
+            if (typeid(T) == typeid(int)) {
+                return static_cast<T>(std::stoi(s));
+            } else if (typeid(T) == typeid(long)) {
+                return static_cast<T>(std::stol(s));
+            } else if (typeid(T) == typeid(long long)) {
+                return static_cast<T>(std::stoll(s));
+            } else if (typeid(T) == typeid(unsigned)) {
+                return static_cast<T>(std::stoul(s));
+            } else if (typeid(T) == typeid(unsigned long)) {
+                return static_cast<T>(std::stoul(s));
+            } else if (typeid(T) == typeid(unsigned long long)) {
+                return static_cast<T>(std::stoull(s));
+            } else if (typeid(T) == typeid(float)) {
+                return static_cast<T>(std::stof(s));
+            } else if (typeid(T) == typeid(double)) {
+                return static_cast<T>(std::stod(s));
+            } else if (typeid(T) == typeid(long double)) {
+                return static_cast<T>(std::stold(s));
+            } else if (typeid(T) == typeid(char)) {
+                return static_cast<T>(s.at(0));
+            } else {
+                throw ConvertException();
+            }
+        } catch (...) {
+            throw;
+        }
+    }
+};
+
 class Parser
 {
   public:
@@ -47,12 +114,54 @@ class Parser
             :separator_(',')
             ,rows_()
             ,colnum_(0)
-    {}
+    { }
 
-    virtual ~Parser() {}
+    virtual ~Parser() { }
 
     inline size_t rownum() const { return rows_.size(); }
     inline size_t colnum() const { return colnum_; }
+
+    std::string get(size_t r, size_t l) const
+    {
+        return rows_.at(r).at(l);
+    }
+
+    int getInt(size_t r, size_t l) const
+    {
+        return ConvertToValue<int>()(rows_.at(r).at(l));
+    }
+    long getLong(size_t r, size_t l) const
+    {
+        return ConvertToValue<long>()(rows_.at(r).at(l));
+    }
+    long long getInt64(size_t r, size_t l) const
+    {
+        return ConvertToValue<long long>()(rows_.at(r).at(l));
+    }
+    unsigned getUInt(size_t r, size_t l) const
+    {
+        return ConvertToValue<unsigned>()(rows_.at(r).at(l));
+    }
+    unsigned long getULong(size_t r, size_t l) const
+    {
+        return ConvertToValue<unsigned long>()(rows_.at(r).at(l));
+    }
+    unsigned long long getUInt64(size_t r, size_t l) const
+    {
+        return ConvertToValue<unsigned long long>()(rows_.at(r).at(l));
+    }
+    float getFloat(size_t r, size_t l) const
+    {
+        return ConvertToValue<float>()(rows_.at(r).at(l));
+    }
+    double getDouble(size_t r, size_t l) const
+    {
+        return ConvertToValue<double>()(rows_.at(r).at(l));
+    }
+    char getChar(size_t r, size_t l) const
+    {
+        return ConvertToValue<char>()(rows_.at(r).at(l));
+    }
 
     bool loadcsv(const std::string &path)
     {
@@ -68,6 +177,8 @@ class Parser
 
     bool parseStream(std::istream &is)
     {
+        clear();
+
         std::string line;
         while (std::getline(is, line)) {
             if (trim(line).empty()) {
@@ -112,7 +223,7 @@ class Parser
         row.push_back(std::string {});
         std::string &ele = row.back();
         std::copy(first, last, std::back_inserter(ele));
-        return ele;
+        return trim(ele);
     }
 
   private:
